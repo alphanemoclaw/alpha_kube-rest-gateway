@@ -1,0 +1,24 @@
+[Unit]
+Description=Kube REST Gateway Service
+After=network.target
+
+[Service]
+# Replace 'ubuntu' with your actual username
+User=andre
+Group=andre
+
+# Replace with the actual path to your project folder
+WorkingDirectory=/home/andre/kube-rest-gateway
+
+# Path to the python executable inside your virtual environment
+ExecStart=/home/andre/kube-rest-gateway/.venv/bin/python main.py
+
+# Restart the service automatically if it crashes
+Restart=always
+RestartSec=5
+
+# Environment variables (can also be loaded from the .env file)
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
