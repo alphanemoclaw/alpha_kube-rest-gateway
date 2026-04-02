@@ -18,6 +18,13 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
+    - name: Set version
+      id: version
+      run: |
+        VERSION="v${{ github.run_number }}"
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Build version: $VERSION"
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -37,13 +44,27 @@ jobs:
           type=ref,event=branch
           type=ref,event=pr
           type=sha
+          type=raw,value=${{ steps.version.outputs.VERSION }}
+          type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: true
+        push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
+        build-args: |
+          BUILD_VERSION=${{ steps.version.outputs.VERSION }}
         cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/cache
         cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/cache,mode=max
+
+    - name: Summary
+      run: |
+        echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Version | ${{ steps.version.outputs.VERSION }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Image | ghcr.io/${{ github.repository }}:${{ steps.version.outputs.VERSION }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
