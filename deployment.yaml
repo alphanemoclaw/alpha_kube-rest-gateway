@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: gateway
-        image: ghcr.io/alphanemoclaw/alpha_kube-rest-gateway:8b61139297a7dfc61df115448d9750ea6c89d94b
+        image: ghcr.io/alphanemoclaw/alpha_kube-rest-gateway:latest
         ports:
         - containerPort: 8081
         env:
