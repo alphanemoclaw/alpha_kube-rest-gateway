@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-rest-gateway
+  labels:
+    app: kube-rest-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-rest-gateway
+  template:
+    metadata:
+      labels:
+        app: kube-rest-gateway
+    spec:
+      containers:
+      - name: gateway
+        image: ghcr.io/alphanemoclaw/alpha_kube-rest-gateway:8b61139297a7dfc61df115448d9750ea6c89d94b
+        ports:
+        - containerPort: 8081
+        env:
+        - name: GATEWAY_API_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: kube-gateway-secrets
+              key: GATEWAY_API_TOKEN
+        - name: KUBECONFIG_PATH
+          value: "/app/.kube/config"
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: /app/.kube
+          readOnly: true
+        - name: gateway-token
+          mountPath: /var/secrets/gateway
+          readOnly: true
+      volumes:
+      - name: kubeconfig
+        secret:
+          secretName: kube-gateway-kubeconfig
+      - name: gateway-token
+        secret:
+          secretName: kube-gateway-secrets
