@@ -4,14 +4,14 @@ metadata:
   name: kube-rest-gateway
   namespace: argocd
 spec:
-  project: alpha-nemoclaw-project
+  project: default
   source:
     repoURL: https://github.com/alphanemoclaw/alpha_kube-rest-gateway.git
     targetRevision: HEAD
     path: manifests
   destination:
     server: https://kubernetes.default.svc
-    namespace: alpha-nemoclaw-project
+    namespace: kube-rest-gateway
   syncPolicy:
     automated:
       prune: true
