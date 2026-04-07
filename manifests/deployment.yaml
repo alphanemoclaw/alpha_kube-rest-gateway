@@ -14,6 +14,8 @@ spec:
       labels:
         app: kube-rest-gateway
     spec:
+      nodeSelector:
+        kubernetes.io/hostname: andrek8s
       containers:
       - name: gateway
         image: ghcr.io/alphanemoclaw/alpha_kube-rest-gateway:latest
