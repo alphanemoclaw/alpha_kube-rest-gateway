@@ -10,13 +10,15 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
       id-token: write
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        ref: ${{ github.head_ref || github.ref_name }}
 
     - name: Set version
       id: version
@@ -58,6 +60,18 @@ jobs:
           BUILD_VERSION=${{ steps.version.outputs.VERSION }}
         cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/cache
         cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/cache,mode=max
+
+    - name: Update deployment manifest
+      run: |
+        VERSION="${{ steps.version.outputs.VERSION }}"
+        sed -i "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:$VERSION|g" manifests/deployment.yaml
+
+    - name: Commit and push manifest change
+      uses: EndBug/add-and-commit@v9
+      with:
+        message: "chore: update image tag to ${{ steps.version.outputs.VERSION }}"
+        add: "manifests/deployment.yaml"
+        default_author: github_actions
 
     - name: Summary
       run: |
