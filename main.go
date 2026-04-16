@@ -19,15 +19,13 @@ func main() {
 
 	r := gin.Default()
 
-	// Middleware
-	r.Use(handlers.AuthMiddleware(cfg))
-
-	// Health check
+	// Public routes
 	r.GET("/healthz", handlers.Healthz)
 	r.GET("/", handlers.Root)
 
-	// API endpoints
+	// API endpoints (Authenticated)
 	api := r.Group("/api")
+	api.Use(handlers.AuthMiddleware(cfg))
 	{
 		api.GET("/help", handlers.ApiHelp)
 		api.GET("/pods", handlers.ListPods(cfg))
