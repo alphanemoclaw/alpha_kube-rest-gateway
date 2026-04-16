@@ -62,11 +62,13 @@ jobs:
         cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/cache,mode=max
 
     - name: Update deployment manifest
+      if: github.event_name != 'pull_request'
       run: |
         VERSION="${{ steps.version.outputs.VERSION }}"
         sed -i "s|image: ghcr.io/${{ github.repository }}:.*|image: ghcr.io/${{ github.repository }}:$VERSION|g" manifests/deployment.yaml
 
     - name: Commit and push manifest change
+      if: github.event_name != 'pull_request'
       uses: EndBug/add-and-commit@v9
       with:
         message: "chore: update image tag to ${{ steps.version.outputs.VERSION }}"
