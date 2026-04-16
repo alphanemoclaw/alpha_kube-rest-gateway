@@ -1,42 +1,41 @@
-# Comment added by OpenClaw assistant
-# Use official Python image as base
-FROM python:3.11-slim
+# --- Build Stage ---
+FROM golang:1.26-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+# Install build dependencies
+RUN apk add --no-cache git
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy dependency files
+COPY go.mod go.sum ./
+RUN go mod download
 
-# Copy application code
+# Copy source code
 COPY . .
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser \
-    && chown -R appuser:appuser /app
-USER appuser
+# Build the application
+# CGO_ENABLED=0 for a static binary that works in a minimal image
+RUN CGO_ENABLED=0 GOOS=linux go build -o kube-rest-gateway main.go
 
-# Expose the port the gateway runs on
+# --- Final Stage ---
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Add a non-root user for security
+RUN adduser -D gatewayuser
+USER gatewayuser
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/kube-rest-gateway .
+
+# Expose the default port
 EXPOSE 8081
 
-# Environment variables with defaults (can be overridden at runtime)
-ENV KUBECONFIG_PATH=/app/.kube/config \
-    GATEWAY_API_TOKEN= \
-    GATEWAY_HOST=0.0.0.0 \
-    GATEWAY_PORT=8081 \
-    DEFAULT_NAMESPACE=default \
-    DEFAULT_LOG_TAIL_LINES=100 \
-    LOG_LEVEL=INFO
+# Set default environment variables
+ENV GATEWAY_PORT=8081
+ENV GATEWAY_HOST=0.0.0.0
+ENV LOG_LEVEL=INFO
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8081/healthz || exit 1
-
-# Run the application
-CMD ["python", "main.py"]
+# Command to run the gateway
+ENTRYPOINT ["./kube-rest-gateway"]

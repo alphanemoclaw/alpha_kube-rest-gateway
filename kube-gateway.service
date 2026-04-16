@@ -10,15 +10,12 @@ Group=andre
 # Replace with the actual path to your project folder
 WorkingDirectory=/home/andre/kube-rest-gateway
 
-# Path to the python executable inside your virtual environment
-ExecStart=/home/andre/kube-rest-gateway/.venv/bin/python main.py
+# Path to the compiled Go binary
+ExecStart=/home/andre/kube-rest-gateway/kube-rest-gateway
 
 # Restart the service automatically if it crashes
 Restart=always
 RestartSec=5
-
-# Environment variables (can also be loaded from the .env file)
-Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
