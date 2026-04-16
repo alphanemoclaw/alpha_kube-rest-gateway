@@ -18,7 +18,7 @@ spec:
         kubernetes.io/hostname: andrek8s
       containers:
       - name: gateway
-        image: ghcr.io/alphanemoclaw/alpha_kube-rest-gateway:v19
+        image: ghcr.io/alphanemoclaw/alpha_kube-rest-gateway:v21
         imagePullPolicy: Always
         ports:
         - containerPort: 8081
