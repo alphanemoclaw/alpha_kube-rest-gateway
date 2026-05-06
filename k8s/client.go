@@ -8,9 +8,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-var Clientset *kubernetes.Clientset
+var Clientset kubernetes.Interface
+var MetricsClientset metricsclientset.Interface
 
 func InitK8sClient(cfg *config.Config) error {
 	slog.Info("Initialising Kubernetes client", "path", cfg.KubeconfigPath)
@@ -28,6 +30,11 @@ func InitK8sClient(cfg *config.Config) error {
 	Clientset, err = kubernetes.NewForConfig(k8sCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create kubernetes clientset: %w", err)
+	}
+
+	MetricsClientset, err = metricsclientset.NewForConfig(k8sCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes metrics clientset: %w", err)
 	}
 
 	return nil

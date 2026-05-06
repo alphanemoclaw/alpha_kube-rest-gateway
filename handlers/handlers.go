@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/alpha-kube-rest-gateway/config"
@@ -73,6 +74,11 @@ func ApiHelp(c *gin.Context) {
 				"description": "Get detailed JSON for a specific pod.",
 			},
 			{
+				"endpoint":    "/api/pods/{name}/status",
+				"method":      "GET",
+				"description": "Get detailed pod lifecycle status, container states, waiting reasons, exit codes, and restart diagnostics.",
+			},
+			{
 				"endpoint":    "/api/logs/{name}",
 				"method":      "GET",
 				"description": "Fetch recent logs. Use ?tail_lines= to limit output.",
@@ -89,6 +95,31 @@ func ApiHelp(c *gin.Context) {
 				"description": "List deployments and checkout replica health.",
 			},
 			{
+				"endpoint":    "/api/replicasets",
+				"method":      "GET",
+				"description": "List ReplicaSets to debug deployment rollouts.",
+			},
+			{
+				"endpoint":    "/api/statefulsets",
+				"method":      "GET",
+				"description": "List StatefulSets and replica readiness.",
+			},
+			{
+				"endpoint":    "/api/daemonsets",
+				"method":      "GET",
+				"description": "List DaemonSets and node scheduling health.",
+			},
+			{
+				"endpoint":    "/api/jobs",
+				"method":      "GET",
+				"description": "List Jobs and completion/failure status.",
+			},
+			{
+				"endpoint":    "/api/cronjobs",
+				"method":      "GET",
+				"description": "List CronJobs and schedule status.",
+			},
+			{
 				"endpoint":    "/api/events",
 				"method":      "GET",
 				"description": "Get cluster events to debug crashing pods (ImagePullBackOff, etc).",
@@ -103,6 +134,66 @@ func ApiHelp(c *gin.Context) {
 				"endpoint":    "/api/nodes",
 				"method":      "GET",
 				"description": "List physical/virtual nodes in the cluster.",
+			},
+			{
+				"endpoint":    "/api/endpoints",
+				"method":      "GET",
+				"description": "List service Endpoints to verify backend pod routing.",
+			},
+			{
+				"endpoint":    "/api/endpointslices",
+				"method":      "GET",
+				"description": "List EndpointSlices to debug service backend discovery.",
+			},
+			{
+				"endpoint":    "/api/ingresses",
+				"method":      "GET",
+				"description": "List Ingress host/path/TLS/backend mappings.",
+			},
+			{
+				"endpoint":    "/api/pvcs",
+				"method":      "GET",
+				"description": "List PersistentVolumeClaims and bind status.",
+			},
+			{
+				"endpoint":    "/api/pvs",
+				"method":      "GET",
+				"description": "List PersistentVolumes and reclaim/storage status.",
+			},
+			{
+				"endpoint":    "/api/storageclasses",
+				"method":      "GET",
+				"description": "List StorageClasses and provisioner settings.",
+			},
+			{
+				"endpoint":    "/api/networkpolicies",
+				"method":      "GET",
+				"description": "List NetworkPolicies and policy direction counts.",
+			},
+			{
+				"endpoint":    "/api/resourcequotas",
+				"method":      "GET",
+				"description": "List ResourceQuotas hard/used values.",
+			},
+			{
+				"endpoint":    "/api/limitranges",
+				"method":      "GET",
+				"description": "List LimitRanges and default/min/max constraints.",
+			},
+			{
+				"endpoint":    "/api/configmaps",
+				"method":      "GET",
+				"description": "List ConfigMap metadata and keys only; values are intentionally omitted.",
+			},
+			{
+				"endpoint":    "/api/metrics/pods",
+				"method":      "GET",
+				"description": "List pod CPU/memory metrics when metrics-server is installed.",
+			},
+			{
+				"endpoint":    "/api/metrics/nodes",
+				"method":      "GET",
+				"description": "List node CPU/memory metrics when metrics-server is installed.",
 			},
 		},
 		"instructions": "1. Always check /api/namespaces first if you aren't sure where to look. 2. If a pod is 'Pending' or 'Error', check /api/events for the root cause. 3. Keep log requests small (e.g., tail_lines=50) to save processing time.",
@@ -160,13 +251,23 @@ func GetPodLogs(cfg *config.Config) gin.HandlerFunc {
 		podName := c.Param("pod_name")
 		namespace := c.DefaultQuery("namespace", cfg.DefaultNamespace)
 		container := c.Query("container")
-		tailLinesStr := c.DefaultQuery("tail_lines", "100")
+		tailLinesStr := c.DefaultQuery("tail_lines", strconv.FormatInt(cfg.DefaultLogTailLines, 10))
 		previous := c.Query("previous") == "true"
 
-		var tailLines int64 = 100
+		tailLines := cfg.DefaultLogTailLines
+		if tailLines <= 0 {
+			tailLines = 100
+		}
 		if strings.TrimSpace(tailLinesStr) != "" {
-			// Parsing handled by default query but let's be safe
-			// In a real app we'd validate this better
+			parsedTailLines, err := strconv.ParseInt(tailLinesStr, 10, 64)
+			if err != nil || parsedTailLines <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "InvalidQueryParam", "message": "tail_lines must be a positive integer"})
+				return
+			}
+			tailLines = parsedTailLines
+		}
+		if tailLines > 10000 {
+			tailLines = 10000
 		}
 
 		opts := &corev1.PodLogOptions{
@@ -398,34 +499,7 @@ func mapPod(p corev1.Pod) models.Pod {
 		Conditions:        make([]models.Condition, 0),
 	}
 
-	statusMap := make(map[string]models.Container)
-	for _, cs := range p.Status.ContainerStatuses {
-		statusMap[cs.Name] = models.Container{
-			Ready:        cs.Ready,
-			RestartCount: cs.RestartCount,
-		}
-	}
-
-	for _, c := range p.Spec.Containers {
-		container := models.Container{
-			Name:  c.Name,
-			Image: c.Image,
-			Ports: make([]models.ContainerPort, 0),
-		}
-
-		if s, ok := statusMap[c.Name]; ok {
-			container.Ready = s.Ready
-			container.RestartCount = s.RestartCount
-		}
-
-		for _, port := range c.Ports {
-			container.Ports = append(container.Ports, models.ContainerPort{
-				ContainerPort: port.ContainerPort,
-				Protocol:      string(port.Protocol),
-			})
-		}
-		pod.Containers = append(pod.Containers, container)
-	}
+	pod.Containers = mapContainers(p.Spec.Containers, p.Status.ContainerStatuses)
 
 	for _, cond := range p.Status.Conditions {
 		pod.Conditions = append(pod.Conditions, models.Condition{
@@ -464,13 +538,18 @@ func mapService(s corev1.Service) models.Service {
 }
 
 func mapDeployment(d appsv1.Deployment) models.Deployment {
+	desired := int32(0)
+	if d.Spec.Replicas != nil {
+		desired = *d.Spec.Replicas
+	}
+
 	dep := models.Deployment{
 		Name:              d.Name,
 		Namespace:         d.Namespace,
 		CreationTimestamp: &d.CreationTimestamp.Time,
 		Labels:            d.Labels,
 		Replicas: models.Replicas{
-			Desired:   *d.Spec.Replicas,
+			Desired:   desired,
 			Ready:     d.Status.ReadyReplicas,
 			Available: d.Status.AvailableReplicas,
 			Updated:   d.Status.UpdatedReplicas,
